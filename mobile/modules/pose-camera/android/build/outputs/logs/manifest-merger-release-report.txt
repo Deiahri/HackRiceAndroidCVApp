@@ -1,0 +1,26 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml:1:1-4:12
+INJECTED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml:1:1-4:12
+	package
+		INJECTED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml:1:11-69
+uses-permission#android.permission.CAMERA
+ADDED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml:2:3-63
+	android:name
+		ADDED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml:2:20-60
+uses-feature#android.hardware.camera.any
+ADDED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml:3:3-86
+	android:required
+		ADDED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml:3:60-83
+	android:name
+		ADDED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml:3:17-59
+uses-sdk
+INJECTED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml
+INJECTED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /home/deiahri/Desktop/tmp/hackrice/CV-Exercise/mobile/modules/pose-camera/android/src/main/AndroidManifest.xml

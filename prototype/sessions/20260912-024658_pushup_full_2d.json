@@ -1,0 +1,98 @@
+{
+  "exercise": "pushup",
+  "model": "full",
+  "angles": "2d",
+  "source": "camera:0",
+  "reps_counted": 6,
+  "partial_reps": 0,
+  "avg_score": 80.6,
+  "reps": [
+    {
+      "number": 1,
+      "score": 90.5,
+      "subscores": {
+        "depth": 100.0,
+        "body_line": 98.8,
+        "lockout": 54.9
+      },
+      "cues": [
+        "Fully extend your arms at the top"
+      ],
+      "duration_s": 1.74
+    },
+    {
+      "number": 2,
+      "score": 86.1,
+      "subscores": {
+        "depth": 100.0,
+        "body_line": 88.0,
+        "lockout": 54.7
+      },
+      "cues": [
+        "Fully extend your arms at the top"
+      ],
+      "duration_s": 1.0
+    },
+    {
+      "number": 3,
+      "score": 94.3,
+      "subscores": {
+        "depth": 100.0,
+        "body_line": 93.7,
+        "lockout": 83.9
+      },
+      "cues": [
+        "Good rep"
+      ],
+      "duration_s": 0.86
+    },
+    {
+      "number": 4,
+      "score": 84.9,
+      "subscores": {
+        "depth": 100.0,
+        "body_line": 77.0,
+        "lockout": 70.5
+      },
+      "cues": [
+        "Slow down"
+      ],
+      "duration_s": 0.6
+    },
+    {
+      "number": 5,
+      "score": 56.2,
+      "subscores": {
+        "depth": 98.5,
+        "body_line": 0.0,
+        "lockout": 83.9
+      },
+      "cues": [
+        "Hips sagging - brace your core",
+        "Slow down"
+      ],
+      "duration_s": 0.47
+    },
+    {
+      "number": 6,
+      "score": 71.9,
+      "subscores": {
+        "depth": 100.0,
+        "body_line": 41.7,
+        "lockout": 76.2
+      },
+      "cues": [
+        "Hips too high - flatten your body",
+        "Slow down"
+      ],
+      "duration_s": 0.8
+    }
+  ],
+  "stats": {
+    "frames": 891,
+    "seconds": 65.6,
+    "avg_fps": 13.6,
+    "avg_inference_ms": 33.5,
+    "pose_detected_pct": 69.2
+  }
+}
