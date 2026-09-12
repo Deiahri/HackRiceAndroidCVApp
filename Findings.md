@@ -6,9 +6,10 @@
 - **Recommendation:** use an **on-device pose estimation model (Google MediaPipe BlazePose, 33 3D landmarks)**. Put **rule-based geometry** on top of it: joint angles → a rep state machine → a weighted form score.
 - **No training data is needed** for the MVP. Every exercise is about 50 lines of rules (thresholds + scoring). Squats and push-ups are built and working in the prototype.
 - Form feedback can be explained: every point lost maps to a cue like "go deeper" or "hips sagging". Product gets per-rep scores and text cues.
-- **Runs on-device:** no video leaves the phone, costs nothing per user, and works offline. The desktop CPU runs about 25 ms per frame (~40 FPS inference). Phones with GPU delegates are in the same range.
+- **Runs on-device:** no video leaves the phone, costs nothing per user, and works offline. The desktop CPU runs about 25 ms per frame (~40 FPS inference). On a mid-range phone (Galaxy S24 FE, GPU delegate) the first measurement was **~47 ms inference and 10–13 FPS end-to-end**. That's slower than the desktop but enough for counting reps (§3d).
 - **React Native (Expo):** built as a **small custom Expo native module** (Kotlin: CameraX + MediaPipe Tasks) instead of the community vision-camera plugins, which lag behind our Expo SDK 57 / React Native 0.86 stack (§6). It **needs an Expo dev build (not Expo Go)**. The rep and score logic is ported 1:1 to TypeScript and verified identical to the Python.
 - **Main risks:** (1) camera placement. Users must be side-on, with their full body in frame. (2) We own the native camera/pose code, and iOS still needs its Swift counterpart (~1–2 days).
+- **Building the next app?** Start at **§10**. It covers what to reuse as-is, the native design decisions that mattered, build gotchas, and the size/performance budget.
 
 ---
 
@@ -79,8 +80,19 @@ The team ran the prototype live on a laptop webcam. Only one session was saved t
 | Push-up | mixed good + deliberately bad reps, side view, `full`, `2d` | _to confirm_ | 6 (0 partial) | 80.6% | 13.6 FPS end-to-end, 33.5 ms inference, pose found in 69% of frames. Per-rep scores 90 / 86 / 94 / 85 / 56 / 72. The cues matched the faults: "Fully extend your arms" (lockout ~55%), "Hips sagging" (body line 0%), "Hips too high", and "Slow down" on reps under 0.8 s. |
 | Squat | good form / shallow / facing camera `--angles 3d` | – | – | – | Not saved |
 
+What the push-up session tells us about tuning. It's only one session, so these are hypotheses, not conclusions:
+
+| Signal | Observation | Likely meaning → action |
+|---|---|---|
+| Depth | Scored 98.5–100 on all 6 reps | The 90°/130° elbow ramp may be too lenient. Check against deliberately shallow reps. |
+| Lockout | Scored ~55 on reps 1–2, even though those reps were otherwise clean | 165° may be too strict for 2D angles after EMA smoothing, since arms rarely read fully straight. **First tuning candidate.** |
+| Tempo | "Slow down" fired on reps 4–6 (0.47–0.8 s) | This matched genuinely fast reps. The 0.8 s floor looks right. |
+| Detection | Pose found in only 69% of frames | A side-on plank at floor height often drops out of detection. This reinforces the need for placement onboarding and a "body visible" indicator (§7). |
+
 ### 3d. On-device Android (Expo app, custom module)
 **Device:** Samsung Galaxy S24 FE (SM-S721U), Android 14 (API 34), Exynos 2400e. **Build:** standalone release APK (arm64). `pose_landmarker_full`, GPU delegate with CPU fallback. Camera frames are about 640×480. Timings come from the app's `SESSION_SUMMARY` log.
+
+**First measurements (2026-09-12, full model, GPU):** about **47 ms** inference, about **8 ms** frame preprocessing (ImageProxy → rotated Bitmap), and **10–13 FPS** end-to-end. The rep-accuracy trials below are still to do.
 
 | Exercise | Setup | Actual reps | Counted | Partial | Avg score | FPS | Inference ms | Delegate | Notes |
 |---|---|---|---|---|---|---|---|---|---|
@@ -131,14 +143,14 @@ The team ran the prototype live on a laptop webcam. Only one session was saved t
 | Camera | **CameraX 1.6.2**. `PreviewView` shows the preview. `ImageAnalysis` delivers RGBA_8888 frames at about 640×480 and keeps only the latest frame. Front camera by default, switchable. |
 | Pose | **MediaPipe `tasks-vision` 1.0.0** `PoseLandmarker` in LIVE_STREAM mode. **GPU delegate, falling back to CPU.** The model is bundled in the APK: `full` by default, `lite` as an option. One frame is in flight at a time, so the model never builds a queue. |
 | Bridge | One native view: `<PoseCameraView model cameraFacing onPose onError />`. Each frame, `onPose` sends 33 landmarks (normalized x/y/z + visibility), the world landmarks, the image size, inference ms and a mirrored flag. |
-| Logic | [mobile/src/logic/](mobile/src/logic/) is a 1:1 TypeScript port of `pose.py` + `exercises.py`, with the same thresholds, weights and cues. It runs on the JS thread for each pose event. `npm run test:logic` replays the §3a scenarios. Fed the same frames, the TypeScript and Python engines give **identical** reps, scores, sub-scores and cues. |
+| Logic | [mobile/src/logic/](mobile/src/logic/) is a 1:1 TypeScript port of `pose.py` + `exercises.py`, with the same thresholds, weights and cues. It runs on the JS thread for each pose event. `npm run test:logic` replays the §3a scenarios. Fed the same frames, the TypeScript and Python engines give **identical** reps, scores, sub-scores and cues. The app currently uses **2D angles only**. `worldLandmarks` cross the bridge but nothing uses them yet, and there's no 3D toggle in the UI. |
 | UI | Exercise picker, camera screen with a `react-native-svg` skeleton overlay (cover-fit + front-camera mirroring), a HUD (reps, partial reps, angle, last/average %, cues, status, FPS, ms), and a per-rep summary table at the end. `expo-keep-awake` keeps the screen on during a set. |
-| Build | A local dev build over USB: `npx expo run:android`. Expo Go can't load it. EAS isn't needed. |
+| Build | A local dev build over USB (`npx expo run:android`), or a **standalone release APK** for untethered testing (§10.3). Expo Go can't load it. EAS isn't needed. `mobile/android/` is gitignored and regenerated by prebuild (CNG), so all native config lives in the module and `app.json`. |
 
 **Why not the community plugins from the original plan:**
 - `react-native-vision-camera` has moved to **v5, a Nitro Modules rewrite**. The MediaPipe frame-processor plugins were written for **v4 + `react-native-worklets-core`**.
 - The strongest candidate, `react-native-mediapipe-posedetection`, targets vision-camera 4 on **React Native 0.81**. We're on **Expo SDK 57 / React Native 0.86**, so we'd be depending on three community packages that are behind our version, with no guarantee they build.
-- The custom module is about 250 lines of Kotlin with two first-party Google dependencies whose versions we pin. Only 33 points per frame cross into JavaScript, so we don't need frame-processor worklets.
+- The custom module is about 320 lines of Kotlin with two first-party Google dependencies whose versions we pin. Only 33 points per frame cross into JavaScript, so we don't need frame-processor worklets.
 - **The cost:** we own the native code. **iOS** needs its own Swift view (AVFoundation + the `MediaPipeTasksVision` pod) behind the same props and events. Our estimate is **1–2 dev days**, because the JavaScript logic and UI are shared.
 
 <details><summary>Community plugins we evaluated (for reference)</summary>
@@ -166,15 +178,78 @@ The team ran the prototype live on a laptop webcam. Only one session was saved t
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Camera angle / placement varies wildly | Miscounts, unfair scores | Onboarding + visibility gating + `3d` angles fallback |
-| RN plugin maturity | Integration delays | Evaluate early. Plan B native Expo module |
+| We own the native camera/pose code | Upgrades (CameraX, MediaPipe, Expo) are on us, and **iOS isn't started** | The module is small, with two pinned first-party deps. iOS is a Swift view behind the same props/events (~1–2 days). |
 | Thresholds tuned on few bodies | Scores feel wrong for some users (mobility, body proportions) | Collect feedback, make thresholds remote-configurable |
 | Loose clothing / low light / cluttered background | Landmark jitter | EMA smoothing, visibility threshold, UX guidance |
 | Battery / thermals | Long sessions drain the phone | `lite` model, 15 FPS cap |
 
 **Open questions for product:** which exercises come after squats and push-ups? Is a single overall % enough, or do users want the sub-scores? Should partial reps be shown? Will we log (anonymised) landmark data to improve scoring later?
 
+## 10. Lessons for the next app
+
+### 10.1 Reuse as-is
+| Piece | Path | Notes |
+|---|---|---|
+| Native camera + pose view | [mobile/modules/pose-camera/](mobile/modules/pose-camera/) | About 320 lines of Kotlin plus TS types. Drop it into any Expo SDK 57 app as a local module. The API is `<PoseCameraView model cameraFacing onPose onError />`. |
+| Rep + score engine | [mobile/src/logic/](mobile/src/logic/) | `pose.ts` (geometry) and `exercises.ts` (state machine + scoring) have no dependencies. A new exercise is a subclass with `primaryAngle` / `collect` / `evaluate`. |
+| Logic tests | `mobile/src/logic/selftest.ts` | `npm run test:logic` replays synthetic poses. `-- --dump` prints frames for cross-checking against Python. |
+| Skeleton overlay | `SkeletonOverlay` in [mobile/App.tsx](mobile/App.tsx) | Cover-fit scaling + front-camera mirroring to draw landmarks over `PreviewView`. |
+| Session logging | `SESSION_SUMMARY {json}` in App.tsx | One grep-able log line per session with reps, sub-scores, FPS, ms and delegate. Read it with `adb logcat -s ReactNativeJS PoseCamera`. |
+| Desktop prototype | [prototype/](prototype/) | Fastest way to iterate on thresholds. `--video file.mp4` gives repeatable runs, and sessions save to JSON. |
+
+### 10.2 Native design decisions that mattered
+| Decision | Why |
+|---|---|
+| `shouldUseAndroidLayout = true` on the `ExpoView` | React Native doesn't lay out native children, so `PreviewView` stays blank without a real measure/layout pass. |
+| Same 4:3 `AspectRatioStrategy` on Preview and ImageAnalysis | Landmarks and preview share one aspect ratio, so JS can map points with simple "object-fit: cover" math. |
+| `STRATEGY_KEEP_ONLY_LATEST` + **one frame in flight** (1 s stuck-frame timeout) | The model never builds a queue, latency stays flat, `inferenceMs` is pure model time, and the event rate is the real pose FPS. |
+| Strictly increasing timestamps (`max(now, last + 1)`) | MediaPipe LIVE_STREAM mode rejects equal or backwards timestamps. |
+| Model loaded from module `assets/` into a **direct** `ByteBuffer` | `setModelAssetBuffer` needs a direct buffer. Call `rewind()` before retrying with another delegate. |
+| GPU → CPU fallback **at init and at runtime** | GPU init can fail on some devices, and GPU errors can also surface later via the error listener. Both paths rebuild the landmarker on CPU. |
+| Landmarks sent in rotated, **un-mirrored** image coords + a `mirrored` flag | Scoring math stays camera-independent. Only the overlay flips x. |
+| Events go out via `post {}` with a `released` guard | Results arrive on the analysis thread and must be dispatched on the main thread. The guard prevents events after unmount. |
+| Only 33 points per frame cross into JS | No frame-processor worklets needed. JS runs the engine on each `onPose` event. |
+
+### 10.3 Build & tooling gotchas
+- **Read the versioned Expo docs first** (`mobile/AGENTS.md`: https://docs.expo.dev/versions/v57.0.0/). Expo APIs changed, and older examples don't apply.
+- **JDK:** run Gradle with `JAVA_HOME=/opt/android-studio/jbr` (Android Studio's JDK 21). The system `java-21-openjdk` is a JRE with no `javac`, and Gradle fails with *"does not provide JAVA_COMPILER"*.
+- On the first build, Gradle auto-installs **NDK 27.1, platform 36 and build-tools 35**. Expect a slow first build.
+- `npx expo run:android --device <x>` takes the device **name**, not the adb serial. With one phone connected, omit the flag.
+- **Untethered testing needs a release APK.** A dev build needs Metro:
+  ```
+  JAVA_HOME=/opt/android-studio/jbr android/gradlew -p android app:assembleRelease -PreactNativeArchitectures=arm64-v8a   # ~5 min
+  adb install -r android/app/build/outputs/apk/release/app-release.apk
+  ```
+  It's signed with the debug key, so it installs over the debug build without uninstalling.
+- Expo Go can't load custom native modules, so you always need a dev or release build.
+- Pinned versions that built together: Expo SDK 57, React Native 0.86.3, React 19.2, CameraX 1.6.2, MediaPipe `tasks-vision` 1.0.0, `react-native-svg` 15.15. Desktop: `mediapipe` 1.0.1, OpenCV 5.0.
+
+### 10.4 Size & performance budget
+| Where | Model | Inference | End-to-end | Other |
+|---|---|---|---|---|
+| Desktop CPU, empty frame | lite / full | ~26 / ~24 ms | – | Worst case (detector runs every frame) |
+| Desktop webcam, live push-ups | full | 33.5 ms | 13.6 FPS | Pose found in 69% of frames |
+| Galaxy S24 FE, GPU | full | ~47 ms | 10–13 FPS | ~8 ms preprocessing per frame |
+
+- The **release APK (arm64 only) is ~55.7 MB**. It bundles both models: `full` 9.4 MB and `lite` 5.8 MB. To shrink it, ship one model, or download on first run the way the prototype does (`MODEL_URL` in `prototype/pose.py`, from Google's storage bucket).
+- 10–15 FPS is enough for rep counting and form scoring. At 10 FPS, a 0.8 s rep (the push-up "Slow down" floor) still gives about 8 angle samples.
+
+### 10.5 How we ported & verified the logic
+- Keep all scoring as **pure functions over landmarks**, with no camera or UI imports. That's what made a 1:1 Python → TypeScript port possible.
+- Verify parity by replaying the **same frames** through both engines and diffing the reps, scores, sub-scores and cues (`selftest.ts --dump` → `exercises.py`).
+- Parity traps we hit:
+  - Python's `max()` keeps the first of equal keys, so the **left side wins ties** in `bestSide`. TS must match.
+  - `numpy.percentile` uses **linear interpolation** and was reimplemented by hand.
+
+### 10.6 Known optimizations not yet done (unmeasured)
+- Skip the Bitmap rotation in Kotlin (part of the ~8 ms preprocessing) by passing the rotation to MediaPipe via `ImageProcessingOptions`.
+- Throttle or memoise React state updates. Right now every `onPose` event re-renders the whole camera screen (HUD + SVG overlay).
+- Cap analysis at ~15 FPS for battery and thermals on long sessions (§4).
+- Wire up the `3d` angle mode in the app for users who face the camera (it already exists in Python and in `poseFromLandmarks`).
+
 ## Next steps
-1. Finish the live webcam trials (§3c) and tune thresholds.
-2. Run the 1-day RN plugin evaluation on real devices.
-3. Port the rep/score engine to TypeScript, with recorded-landmark unit tests.
-4. Design the camera-placement onboarding.
+1. Run the on-device trials (§3d) and the remaining webcam trials (§3c): ~10 good + ~5 bad reps per exercise.
+2. Tune thresholds from that data, starting with push-up lockout and depth (§3c).
+3. Design the camera-placement onboarding with a live "body visible" indicator.
+4. Build the iOS Swift counterpart of `PoseCameraView`.
+5. Product decision: do we log anonymised landmarks (with consent) to train a learned scorer or exercise auto-detection later (§8)?
